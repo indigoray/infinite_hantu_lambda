@@ -1,0 +1,17 @@
+Collecting flask
+  Downloading flask-3.1.1-py3-none-any.whl.metadata (3.0 kB)
+Requirement already satisfied: blinker>=1.9.0 in ./venv/lib/python3.11/site-packages (from flask) (1.9.0)
+Requirement already satisfied: click>=8.1.3 in ./venv/lib/python3.11/site-packages (from flask) (8.1.8)
+Collecting itsdangerous>=2.2.0 (from flask)
+  Downloading itsdangerous-2.2.0-py3-none-any.whl.metadata (1.9 kB)
+Requirement already satisfied: jinja2>=3.1.2 in ./venv/lib/python3.11/site-packages (from flask) (3.1.5)
+Requirement already satisfied: markupsafe>=2.1.1 in ./venv/lib/python3.11/site-packages (from flask) (3.0.2)
+Collecting werkzeug>=3.1.0 (from flask)
+  Downloading werkzeug-3.1.3-py3-none-any.whl.metadata (3.7 kB)
+Downloading flask-3.1.1-py3-none-any.whl (103 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 103.3/103.3 kB 7.1 MB/s eta 0:00:00
+Downloading itsdangerous-2.2.0-py3-none-any.whl (16 kB)
+Downloading werkzeug-3.1.3-py3-none-any.whl (224 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 224.5/224.5 kB 10.5 MB/s eta 0:00:00
+Installing collected packages: werkzeug, itsdangerous, flask
+Successfully installed flask-3.1.1 itsdangerous-2.2.0 werkzeug-3.1.3

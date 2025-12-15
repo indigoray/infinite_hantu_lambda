@@ -1,0 +1,58 @@
+# 한국투자증권 API 샘플 코드
+
+
+# 설정 파일
+config/config.yaml
+
+# 상태 파일들 (전략 상태 저장)
+states/
+
+# 캐시 파일들
+stock_master_cache/
+price_logging/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+*.egg-info/*
+.installed.cfg
+*.egg
+
+# 가상환경
+venv/
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 로그 파일
+logs/
+*.log
+*.log.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Windows Zone.Identifier files
+*:Zone.Identifier 

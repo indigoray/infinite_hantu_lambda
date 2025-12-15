@@ -1,0 +1,22 @@
+---
+description: trading strategy
+alwaysApply: false
+---
+# 무한매수 전략 규칙
+
+## 전략 설계
+- 전략 명세: [TradingStrategy.md](mdc:Docs/TradingStrategy.md)
+- 구현: [infinite_buying.py](mdc:src/strategy/infinite_buying.py)
+- 테스트: [test_infinite_buying.py](mdc:test/test_infinite_buying.py)
+
+## 주요 컴포넌트
+- 전략 파라미터 관리
+- 매수/매도 로직
+- 포지션 관리
+- 수익률 계산
+
+## 거래 규칙
+- SOXL 종목만 거래
+- DCA(Dollar Cost Averaging) 방식 매수
+- 수익률 기반 매도
+- 리스크 관리 로직 필수

@@ -1,0 +1,25 @@
+---
+description: Streamlit UI를 작성하는 규칙
+alwaysApply: false
+---
+# Streamlit UI 규칙
+- streamlit은 항상 최신버전을 유지하고, 코드를 작성할 때에도 최신 문서를 기반으로 작업할 것.
+- @Streamlit Doc 을 항상 참고할 것.
+  
+
+## UI 설계
+- UI 명세: [UI_design.md](mdc:Docs/UI_design.md)
+- 구현: [app.py](mdc:src/ui/app.py)
+- 테스트: [test_app.py](mdc:test/test_app.py)
+
+## 주요 화면
+- 계좌 정보 대시보드
+- 전략 모니터링
+- 거래 이력
+- 설정 관리
+
+## UI 가이드라인
+- Streamlit 컴포넌트 활용
+- 실시간 데이터 업데이트
+- 반응형 디자인
+- 직관적인 사용자 경험

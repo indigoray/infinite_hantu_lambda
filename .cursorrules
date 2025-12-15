@@ -1,0 +1,50 @@
+지금부터 이 폴더에서 새로운 프로젝트를 시작할 거야.
+한국투자증권 API를 이용한 '라오어의 무한매수 전략' 자동화 프로젝트야.
+이 프로젝트는 미국 SOXL 반도체 레버리지 3x 상품을 이용해서 DCA로 매수하다가 일정 수익이 나면 매도하는 중단기 매매 전략을 자동화 하는 거야. 
+Python을 사용할 것이고, 한국투자증권의 웹소켓 RestAPI를 이용해 거래할 거야.
+@https://github.com/koreainvestment/open-trading-api 
+
+{/open-trading-api-main} 폴더에는 한국투자증권 API 샘플 코드가 있어.
+증권사 API가 필요할 경우는 항상 위의 폴더를 참고해서 작업해.
+
+- Application의 전체적인 설계명세는 /Docs/Application_design.md 파일을 참고하도록 해.
+- UI는 streamlit을 사용할 것인데 이것은 {@Docs Streamlit doc} {@Streamlit doc}를 항상 참고하도록 해.
+- UI의 구체적인 설계명세는 /Docs/UI_design.md 파일을 참고하도록 해.
+- 거래전략은 /Docs/TradingStrategy.md 파일을 참고하도록 해.
+- /Docs폴더의 design관련 문서들을 참고하여 새로운 기능이나 파일을 추가하고, 변경사항을 Docs 폴더의 문서들에 다시 업데이트 할 것.
+
+# 무한매수 전략 자동화 프로젝트 구조
+
+## 핵심 문서
+- [Application_design.md](mdc:Docs/Application_design.md): 애플리케이션 전체 설계 명세
+- [UI_design.md](mdc:Docs/UI_design.md): UI 설계 명세
+- [TradingStrategy.md](mdc:Docs/TradingStrategy.md): 거래 전략 명세
+
+## 소스 코드 구조
+메인 진입점: [main.py](mdc:main.py)
+
+### API 모듈
+- [kis_client.py](mdc:src/api/kis_client.py): 한국투자증권 API 클라이언트
+
+### 전략 모듈
+- [infinite_buying.py](mdc:src/strategy/infinite_buying.py): 무한매수 전략 구현
+
+### UI 모듈
+- [app.py](mdc:src/ui/app.py): Streamlit UI 구현
+
+### 유틸리티 모듈
+- [logger.py](mdc:src/utils/logger.py): 로깅 유틸리티
+- [telegram.py](mdc:src/utils/telegram.py): 텔레그램 알림 기능
+
+## 테스트 코드
+- [test_kis_client.py](mdc:test/test_kis_client.py): API 클라이언트 테스트
+- [test_infinite_buying.py](mdc:test/test_infinite_buying.py): 전략 테스트
+- [test_app.py](mdc:test/test_app.py): UI 테스트
+- [test_main.py](mdc:test/test_main.py): 메인 모듈 테스트
+
+## 설정 파일
+- [config.yaml](mdc:config/config.yaml): 애플리케이션 설정
+- [requirements.txt](mdc:requirements.txt): 의존성 목록
+
+
+

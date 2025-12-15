@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""
+거래내역 테이블 테스트 스크립트
+
+Usage:
+    python test_trade_history.py
+"""
+
+import sys
+import os
+from datetime import datetime, timedelta
+
+# 프로젝트 루트 디렉터리를 Python 경로에 추가
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from src.strategy.trade_history import TradeHistory
+from src.config import Config
+
+
+def test_trade_history_table():
+    """거래내역 테이블 테스트"""
+    print("🧪 거래내역 테이블 테스트 시작")
+    
+    # 가상 설정 생성
+    mock_params = {
+        "total_investment": 1000000,  # 100만원
+        "division_count": 40,
+        "max_profit_rate": 12,
+        "min_profit_rate": 8,
+        "star_adjustment_rate": 0
+    }
+    
+    # TradeHistory 인스턴스 생성 (테스트 모드)
+    trade_history = TradeHistory(
+        kis_client=None,  # 테스트 모드에서는 불필요
+        symbol="SOXL",
+        strategy_params=mock_params,
+        test_mode=True  # 테스트 모드 활성화
+    )
+    
+    # 30일간의 거래내역 테이블 생성
+    print("\n📊 30일간 거래내역 테이블 생성 중...")
+    start_date = (datetime.now() - timedelta(days=30)).date()
+    
+    df = trade_history.get_trading_history_table(days=30)
+    
+    if df.empty:
+        print("❌ 테이블 생성 실패 - 데이터가 없습니다.")
+        return False
+    
+    print(f"✅ 테이블 생성 성공! 총 {len(df)}행의 데이터")
+    print("\n📋 거래내역 테이블 (상위 10행):")
+    print("=" * 120)
+    print(df.head(10).to_string(index=False))
+    print("=" * 120)
+    
+    # 테이블 컬럼 확인
+    expected_columns = [
+        "Date", "Close", "평단가", "Star가격", "수량", 
+        "수량변동", "실현손익($)", "누적손익($)", 
+        "누적투자액($)", "당일투자액($)", "잔고수익률"
+    ]
+    
+    print(f"\n🔍 컬럼 확인:")
+    for col in expected_columns:
+        if col in df.columns:
+            print(f"  ✅ {col}")
+        else:
+            print(f"  ❌ {col} (누락)")
+    
+    # 데이터 통계
+    print(f"\n📈 데이터 통계:")
+    print(f"  - 전체 행수: {len(df)}")
+    print(f"  - 날짜 범위: {df['Date'].min()} ~ {df['Date'].max()}")
+    
+    # 수량 변동 확인
+    quantity_changes = df[df['수량변동'] != '']
+    if not quantity_changes.empty:
+        print(f"  - 거래 발생일: {len(quantity_changes)}일")
+        print(f"  - 최종 보유수량: {df.iloc[0]['수량'] if not df.empty else 0}주")
+    
+    # 손익 정보
+    profit_data = df[df['누적손익($)'] != '']
+    if not profit_data.empty:
+        print(f"  - 손익 기록일: {len(profit_data)}일")
+        latest_profit = profit_data.iloc[0]['누적손익($)'] if not profit_data.empty else "N/A"
+        print(f"  - 최신 누적손익: {latest_profit}")
+    
+    return True
+
+
+def test_with_config():
+    """설정 파일을 이용한 테스트"""
+    print("\n🔧 설정 파일 기반 테스트")
+    
+    try:
+        # 설정 로드
+        config = Config()
+        strategy_config = config.trading.get("infinite_buying_strategy", {})
+        
+        # 테스트 모드 상태 확인
+        test_mode = strategy_config.get("trade_history_test_mode", False)
+        print(f"📋 현재 설정의 테스트 모드: {test_mode}")
+        
+        if test_mode:
+            print("✅ 테스트 모드가 활성화되어 있습니다.")
+            print("💡 실제 전략에서도 가상 거래내역을 사용합니다.")
+        else:
+            print("📊 테스트 모드가 비활성화되어 있습니다.")
+            print("💡 실제 전략에서는 실제 API를 통해 거래내역을 조회합니다.")
+            print("💡 테스트를 원하면 config.yaml에서 trade_history_test_mode: true로 설정하세요.")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ 설정 로드 실패: {str(e)}")
+        return False
+
+
+if __name__ == "__main__":
+    print("🎯 SOXL 무한매수 전략 - 거래내역 테이블 테스트")
+    print("=" * 60)
+    
+    # 기본 테스트
+    success1 = test_trade_history_table()
+    
+    # 설정 파일 테스트
+    success2 = test_with_config()
+    
+    print("\n" + "=" * 60)
+    if success1 and success2:
+        print("🎉 모든 테스트가 성공적으로 완료되었습니다!")
+        print("\n📝 사용법:")
+        print("1. config.yaml에서 trade_history_test_mode: true로 설정")
+        print("2. 전략 실행 시 가상 거래내역으로 테이블 확인 가능")
+        print("3. UI에서 거래내역 탭 확인")
+    else:
+        print("❌ 일부 테스트가 실패했습니다.")
+        sys.exit(1) 
