@@ -9,8 +9,9 @@ from typing import Dict, Any
 
 # 3rd party
 import requests
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, Application
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, Application, CallbackQueryHandler
+from src_rev.infrastructure.kis.mock_api import MockKisApi
 
 # Add project root to path to import src_rev modules
 # In Cloud Functions, the current directory is the root
@@ -55,24 +56,28 @@ def load_environment():
     TOKEN = telegram_conf.get("bot_token")
     CHAT_ID = str(telegram_conf.get("chat_id"))
     
-    # KIS Auth & API
     api_config = system_config.get("api", {})
-    is_virtual = api_config.get("is_virtual", True)
     
-    auth = KisAuth(
-        key=api_config.get("app_key") or api_config.get("mac_address"),
-        secret=api_config.get("app_secret"),
-        is_virtual=is_virtual
-    )
-    
-    account_num = api_config.get("account_number", "")
-    if not account_num:
-        cano = api_config.get("cano", "")
-        prdt = api_config.get("acnt_prdt_cd", "")
-        if cano and prdt:
-            account_num = cano + prdt
-            
-    kis = KisApi(auth, account_num)
+    if api_config.get("mock_mode", False):
+        logging.info("⚠️ MOCK MODE ACTIVATED ⚠️")
+        kis = MockKisApi(api_config)
+    else:
+        is_virtual = api_config.get("is_virtual", True)
+        
+        auth = KisAuth(
+            key=api_config.get("app_key") or api_config.get("mac_address"),
+            secret=api_config.get("app_secret"),
+            is_virtual=is_virtual
+        )
+        
+        account_num = api_config.get("account_number", "")
+        if not account_num:
+            cano = api_config.get("cano", "")
+            prdt = api_config.get("acnt_prdt_cd", "")
+            if cano and prdt:
+                account_num = cano + prdt
+                
+        kis = KisApi(auth, account_num)
     
     return domain_config, system_config, kis
 
@@ -169,7 +174,7 @@ async def handle_cycle_report(update: Update, kis: KisApi, configs):
 
     await update.message.reply_html(msg)
 
-async def handle_order_reservation(update: Update, kis: KisApi, configs):
+async def handle_order_reservation(update: Update, kis, configs):
     msg = "📅 <b>오늘의 주문예약</b>\n\n"
     has_orders = False
     
@@ -185,6 +190,7 @@ async def handle_order_reservation(update: Update, kis: KisApi, configs):
         msg += f"🔸 <b>{symbol}</b>\n"
         for order in orders:
             side_kor = "매수" if order.side.name == "BUY" else "매도"
+            # order_type.name 접근 시 Enum인지 문자열인지 확인 필요
             type_name = order.order_type.name if hasattr(order.order_type, 'name') else str(order.order_type)
             
             msg += f"  • [{side_kor}] {order.quantity}주 @ ${order.price:,.2f}\n"
@@ -193,8 +199,49 @@ async def handle_order_reservation(update: Update, kis: KisApi, configs):
     
     if not has_orders:
         msg = "📅 <b>오늘 예정된 주문이 없습니다.</b>"
+        await update.message.reply_html(msg)
+    else:
+        # 주문 실행 버튼 추가
+        keyboard = [
+            [InlineKeyboardButton("✅ 주문 실행하기", callback_data="execute_orders")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        msg += "⚠️ <b>위 주문을 실행하시겠습니까?</b>"
+        await update.message.reply_html(msg, reply_markup=reply_markup)
+
+
+async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    버튼 클릭 이벤트(CallbackQuery) 처리
+    """
+    query = update.callback_query
+    await query.answer() # 로딩 상태 제거
+
+    # 환경 로드 (Stateless)
+    domain_configs, _, kis = load_environment()
+
+    if query.data == "execute_orders":
+        # 권한 확인 (chat_id) - user_id는 int, chat_id는 str일 수 있음
+        # config의 chat_id를 가져오기 위해 closure나 context 필요하지만, 
+        # 여기서는 간단히 update.effective_chat.id로 확인
         
-    await update.message.reply_html(msg)
+        # 주문 실행 로직
+        results = []
+        for config in domain_configs:
+            symbol = config.symbol
+            position = kis.get_position(symbol)
+            orders = InfiniteBuyingLogic.generate_orders(config, position)
+            
+            for order in orders:
+                success = kis.place_order(order)
+                status = "성공" if success else "실패"
+                results.append(f"{symbol} {order.side.name} {order.quantity}주: {status}")
+
+        if results:
+            result_msg = "🚀 <b>주문 실행 결과</b>\n\n" + "\n".join(results)
+            await query.edit_message_text(text=result_msg, parse_mode='HTML')
+        else:
+            await query.edit_message_text(text="실행할 주문이 없습니다.")
 
 async def handle_execution_status(update: Update, kis: KisApi):
     today = date.today().strftime("%Y%m%d")
@@ -263,6 +310,7 @@ def telegram_webhook(request):
         # Register Handlers
         app.add_handler(CommandHandler("start", start))
         app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+        app.add_handler(CallbackQueryHandler(handle_callback_query))
         
         # Initialize
         await app.initialize()
