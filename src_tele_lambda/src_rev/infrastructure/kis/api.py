@@ -19,33 +19,45 @@ class KisApi:
         self.acnt_prdt_cd = account_number[8:]
         
     def get_market_price(self, symbol: Symbol) -> Money:
-        """현재가 조회 (해외주식)"""
+        """현재가 조회 (해외주식) - 거래소 자동 감지"""
         url = f"{self.auth.get_base_url()}/uapi/overseas-price/v1/quotations/price"
         
         # TR ID: HHDFS00000300 (실전), VHHDFS00000300 (모의)
         tr_id = "VHHDFS00000300" if self.auth.is_virtual else "HHDFS00000300"
         
-        try:
-            headers = self._get_headers(tr_id)
-            params = {
-                "AUTH": "",
-                "EXCD": "NAS",  # 일단 NASDAQ 하드코딩 (추후 확장)
-                "SYMB": symbol
-            }
-            
-            res = requests.get(url, headers=headers, params=params)
-            data = res.json()
-            
-            if data["rt_cd"] != "0":
-                logger.error(f"Price check failed: {data['msg1']}")
-                return Money(0.0)
+        # 거래소 코드 리스트 (나스닥, 아멕스, 뉴욕) - 우선순위: NAS -> AMS -> NYS
+        # SOXL: AMS(또는 NYS), TQQQ: NAS
+        exchanges = ["NAS", "AMS", "NYS"]
+        
+        for excd in exchanges:
+            try:
+                headers = self._get_headers(tr_id)
+                params = {
+                    "AUTH": "",
+                    "EXCD": excd,
+                    "SYMB": symbol
+                }
                 
-            last_price = float(data["output"]["last"])
-            return Money(last_price)
-            
-        except Exception as e:
-            logger.error(f"Error fetching price for {symbol}: {e}")
-            return Money(0.0)
+                res = requests.get(url, headers=headers, params=params)
+                data = res.json()
+                
+                # 성공하면 바로 반환
+                if data["rt_cd"] == "0":
+                    last_price = float(data["output"]["last"])
+                    # 0원이면 거래소 문제일 수 있으므로 다음 거래소 시도 (혹은 실패 처리?)
+                    # 보통 장 휴장시에도 종가는 나오므로 0이 아니어야 함.
+                    if last_price > 0:
+                        return Money(last_price)
+                
+                # 실패시 로그 남기고 다음 거래소 시도
+                # logger.debug(f"Failed with {excd}: {data['msg1']}")
+                
+            except Exception as e:
+                logger.error(f"Error fetching price for {symbol} on {excd}: {e}")
+        
+        # 모든 거래소 시도 실패
+        logger.error(f"Could not fetch price for {symbol} from any exchange.")
+        return Money(0.0)
 
     def get_position(self, symbol: Symbol) -> Position:
         """잔고 조회 및 Position 객체 반환"""
