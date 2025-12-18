@@ -191,7 +191,7 @@ async def handle_cycle_report(update: Update, kis: KisApi, configs):
         metrics = InfiniteBuyingLogic.calculate_metrics(config, position, float(ref_price))
         
         msg += f"🔸 <b>{symbol}</b>\n"
-        msg += f"  {metrics['current_t']}회차 / {config.division_count}회\n"
+        msg += f"  {metrics['current_t_float']:.1f}회차 ({metrics['current_t']}회) / {config.division_count}회\n"
         msg += f"  진행률: {metrics['progress_rate']:.1f}% (목표: {metrics['target_profit_rate']:.1f}%)\n"
         msg += f"  목표매도가: ${metrics['sell_price']:.2f}\n"
         msg += f"  Star가격: ${metrics['star_price']:.2f}\n\n"

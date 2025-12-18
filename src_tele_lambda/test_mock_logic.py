@@ -57,7 +57,7 @@ def test_mock_flow():
     ref_price = position.current_price
     metrics = InfiniteBuyingLogic.calculate_metrics(strategy_config, position, float(ref_price))
     
-    print(f"   [Metrics] T: {metrics['current_t']}, Progress: {metrics['progress_rate']:.1f}%")
+    print(f"   [Metrics] T: {metrics['current_t']}, T_float: {metrics['current_t_float']:.2f}, Progress: {metrics['progress_rate']:.1f}%")
     print(f"   [Prices] Sell Target: ${metrics['sell_price']:.2f}, Star: ${metrics['star_price']:.2f}")
     
     # 4. Test Order Generation

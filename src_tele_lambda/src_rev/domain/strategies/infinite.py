@@ -30,11 +30,13 @@ class InfiniteBuyingLogic:
         # 1. 1회 매수 금액 (총 투자금 / 분할 수)
         one_time_budget = config.total_investment / config.division_count
         
-        # 2. 현재 회차 (T) 계산 = 총 매입금 / 1회 매수 금액
+        # 3. 현재 회차 (T) 계산 = 총 매입금 / 1회 매수 금액
         #    소수점은 내림 처리하여 보수적으로 계산
         current_t = 0
+        current_t_float = 0.0
         if position.total_cost > 0 and one_time_budget > 0:
-            current_t = math.floor(position.total_cost / one_time_budget)
+            current_t_float = position.total_cost / one_time_budget
+            current_t = math.floor(current_t_float)
             
         # 3. 진행률 (%)
         progress_rate = (current_t / config.division_count) * 100
@@ -62,6 +64,7 @@ class InfiniteBuyingLogic:
         return {
             "one_time_budget": one_time_budget,
             "current_t": current_t,
+            "current_t_float": current_t_float,
             "progress_rate": progress_rate,
             "target_profit_rate": target_profit_rate,
             "sell_price": sell_price,
@@ -108,7 +111,7 @@ class InfiniteBuyingLogic:
                 orders.append(Order(
                     symbol=config.symbol,
                     side=OrderSide.SELL,
-                    price=metrics["star_price"] * 1.001, # 약 0.1% 위
+                    price=metrics["star_price"] + 0.01, # Star가격 + 0.01
                     quantity=star_sell_qty,
                     order_type=OrderType.LOC,
                     description="Star 리밸런싱 매도"
@@ -144,29 +147,33 @@ class InfiniteBuyingLogic:
         # 매수 수량 계산 (1회 예산 / 기준가)
         # LOC 주문이므로 실제 체결가는 다를 수 있지만, 대략적인 수량을 정해서 냄
         
-        # T 0~20회차 (전반전)
+        # T <= 20 (전반전)
         if current_t <= 20: 
-            # 절반은 Star 가격에 LOC 매수
+            # Star 가격 매수 (예산 절반) - MDC: (1일 매수금/2/Star가격)에서 소수점 버림
             star_buy_budget = one_time_budget / 2
-            star_buy_qty = math.floor(star_buy_budget / metrics["star_price"])
+            star_qty = math.floor(star_buy_budget / metrics["star_price"])
             
-            if star_buy_qty > 0:
+            if star_qty > 0:
                 orders.append(Order(
                     symbol=config.symbol,
                     side=OrderSide.BUY,
                     price=metrics["star_price"],
-                    quantity=star_buy_qty,
+                    quantity=star_qty,
                     order_type=OrderType.LOC,
                     description="Star 가격 매수"
                 ))
             
-            # 나머지 절반은 현재가(평단가) 부근 매수 (LOC)
-            # '큰 수 매수' 원칙: 평단가로 매수함
-            avg_buy_budget = one_time_budget / 2
-            # 평단가가 0(첫 매수)이면 현재가 기준
+            # 평단 매수 (예산 절반) - MDC: (1일 매수금 / 1일 매수수량) - Star매수수량
+            # 여기서 '1일 매수수량'은 '1일 매수금 / 기준가격'을 의미한다고 판단됨 (통상적인 무한매수 로직)
             buy_price = position.avg_price if position.avg_price > 0 else ref_price
             
-            avg_buy_qty = math.floor(avg_buy_budget / buy_price)
+            # MDC 식 적용
+            total_daily_qty = math.floor(one_time_budget / buy_price)
+            avg_buy_qty = total_daily_qty - star_qty
+            
+            # 만약 avg_buy_qty가 0보다 작으면 0으로 보정
+            if avg_buy_qty < 0:
+                avg_buy_qty = 0
             
             if avg_buy_qty > 0:
                 orders.append(Order(
@@ -178,19 +185,58 @@ class InfiniteBuyingLogic:
                     description="평단 매수"
                 ))
 
-        # T > 20회차 (후반전)
+        # T > 20 (후반전)
         else:
-            # 1회 분량 전액을 Star 가격에 LOC 매수
-            full_buy_qty = math.floor(one_time_budget / metrics["star_price"])
+            # Star 가격 매수 - MDC: 1일매수금/Star가격 갯수
+            star_qty = math.floor(one_time_budget / metrics["star_price"])
             
-            if full_buy_qty > 0:
+            if star_qty > 0:
                 orders.append(Order(
                     symbol=config.symbol,
                     side=OrderSide.BUY,
                     price=metrics["star_price"],
-                    quantity=full_buy_qty,
+                    quantity=star_qty,
                     order_type=OrderType.LOC,
                     description="Star 가격 전액 매수 (후반전)"
                 ))
+            
+            # 평단 매수 없음 (avg_buy_qty = 0 유지)
+            avg_buy_qty = 0
+
+        # --- 2. 추가 매수 (거미줄/Grid) ---
+        # MDC 공식: 1일매수금 / (Star수량 + 평단매수수량 + 1) ... 가격이 현재가보다 30% 떨어질 때까지
+        # T > 20이면 평단매수수량: 0
+        
+        base_divisor_qty = star_qty + avg_buy_qty
+        
+        i = 1
+        stop_price = ref_price * 0.7 # 현재가 대비 -30%
+        
+        while True:
+            # 추가 매수 가격 계산
+            divisor = base_divisor_qty + i
+            if divisor == 0: 
+                divisor = 1
+                
+            add_buy_price = one_time_budget / divisor
+            
+            # 종료 조건: 가격이 stop_price 미만이면 중단
+            if add_buy_price < stop_price:
+                break
+                
+            # 주문 생성 (수량 1개 고정)
+            orders.append(Order(
+                symbol=config.symbol,
+                side=OrderSide.BUY,
+                price=add_buy_price,
+                quantity= Quantity(1),
+                order_type=OrderType.LOC,
+                description=f"추가 매수 [{i}]"
+            ))
+            
+            i += 1
+            # 무한 루프 방지 안전장치
+            if i > 200:
+                break
 
         return orders
