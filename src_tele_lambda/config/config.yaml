@@ -9,7 +9,7 @@ api: # 한국투자증권 API 설정
   base_url_real: "https://openapi.koreainvestment.com:9443"      # 실전투자용
   base_url_virtual: "https://openapivts.koreainvestment.com:29443"  # 모의투자용
   is_virtual: true  # 모의투자: true, 실전투자: false
-  mock_mode: true   # Mock 테스트 모드: true (가상 데이터 사용)
+  mock_mode: false   # Mock 테스트 모드: true (가상 데이터 사용)
 
 trading: # 거래 설정
   infinite_buying_strategy: # 무한매수 전략 설정

@@ -41,7 +41,7 @@ TOKEN = None
 CHAT_ID = None
 
 # Deployment Version
-VERSION = "v1.1.0 (Mock Mode)"
+VERSION = "v1.2.0 (Virtual Mode)"
 
 def send_startup_notification():
     """컨테이너(인스턴스) 시작 시 알림"""
