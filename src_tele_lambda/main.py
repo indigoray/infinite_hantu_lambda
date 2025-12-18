@@ -131,7 +131,7 @@ async def handle_account_info(update: Update, kis: KisApi, configs):
         msg += f"🔸 <b>{symbol}</b>\n"
         msg += f"  수량: {position.quantity} | 평단: ${position.avg_price:,.2f}\n"
         msg += f"  현재가: ${position.current_price:,.2f}\n"
-        msg += f"  평가금: ${position.current_value:,.2f}\n"
+        msg += f"  평가금: ${position.market_value:,.2f}\n"
         
         if position.total_cost > 0:
             msg += f"  수익률: {position.return_rate:.2f}%\n"

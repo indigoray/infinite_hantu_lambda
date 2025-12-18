@@ -32,6 +32,13 @@ class Position:
         """현재 평가 금액"""
         return Money(self.quantity * self.current_price)
 
+    @property
+    def return_rate(self) -> float:
+        """수익률 (%)"""
+        if self.total_cost > 0:
+            return ((self.market_value - self.total_cost) / self.total_cost) * 100
+        return 0.0
+
 @dataclass
 class Order:
     """주문 요청 객체"""
