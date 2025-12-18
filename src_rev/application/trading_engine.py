@@ -43,7 +43,7 @@ class TradingEngine:
         await self._load_or_init_state()
         
         # 2. 봇 알림
-        await self.bot.notify_error(f"🟢 <b>엔진 가동 시작</b>\n대상: {self.config.symbol}")
+        await self.bot.notify_info(f"🟢 <b>엔진 가동 시작</b>\n대상: {self.config.symbol}\n(일일 사이클 시작)")
         
         # 3. 메인 루프
         while self._running:

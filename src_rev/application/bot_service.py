@@ -44,3 +44,7 @@ class BotService:
     async def notify_error(self, error_msg: str):
         """에러 알림"""
         await self.bot.send_message(f"🚨 <b>오류 발생</b>\n\n{error_msg}")
+        
+    async def notify_info(self, msg: str):
+        """일반 정보 알림"""
+        await self.bot.send_message(f"ℹ️ <b>알림</b>\n\n{msg}")

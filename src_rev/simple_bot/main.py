@@ -1,0 +1,274 @@
+
+import os
+import sys
+import logging
+import asyncio
+import json
+from datetime import date
+from typing import Dict, Any
+
+# 3rd party
+import requests
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, Application
+
+# Add project root to path to import src_rev modules
+# Assuming this file is at src_rev/simple_bot/main.py
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(current_dir))
+sys.path.append(project_root)
+
+# Imports from existing codebase
+try:
+    from src_rev.infrastructure.kis.auth import KisAuth
+    from src_rev.infrastructure.kis.api import KisApi
+    from src_rev.infrastructure.config_loader import ConfigLoader
+    from src_rev.domain.strategies.infinite import InfiniteBuyingLogic
+except ImportError as e:
+    # Fallback for deployment scenarios where structure might differ
+    logging.warning(f"Import failed: {e}. Checking relative paths...")
+    # Add src_rev parent to sys.path if needed
+    pass
+
+# Setup Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Constants
+CONFIG_PATH = os.path.join(project_root, "config", "config.yaml")
+
+# Global variables
+TOKEN = None
+CHAT_ID = None
+
+def load_environment():
+    """Load config and setup objects"""
+    loader = ConfigLoader(CONFIG_PATH)
+    domain_config, system_config = loader.load()
+    
+    # Global setup
+    global TOKEN, CHAT_ID
+    telegram_conf = system_config.get("telegram", {})
+    TOKEN = telegram_conf.get("bot_token")
+    CHAT_ID = str(telegram_conf.get("chat_id"))
+    
+    # KIS Auth & API
+    api_config = system_config.get("api", {})
+    is_virtual = api_config.get("is_virtual", True)
+    
+    auth = KisAuth(
+        key=api_config.get("app_key") or api_config.get("mac_address"),
+        secret=api_config.get("app_secret"),
+        is_virtual=is_virtual
+    )
+    
+    account_num = api_config.get("account_number", "")
+    if not account_num:
+        cano = api_config.get("cano", "")
+        prdt = api_config.get("acnt_prdt_cd", "")
+        if cano and prdt:
+            account_num = cano + prdt
+            
+    kis = KisApi(auth, account_num)
+    
+    return domain_config, system_config, kis
+
+# --- Command Handlers ---
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send a message when the command /start is issued."""
+    keyboard = [
+        [KeyboardButton("1. 계좌 조회"), KeyboardButton("2. 사이클 상황보고")],
+        [KeyboardButton("3. 오늘의 주문예약"), KeyboardButton("4. 오늘의 체결상황")]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    await update.message.reply_text("무엇을 도와드릴까요?", reply_markup=reply_markup)
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle menu selections"""
+    text = update.message.text
+    chat_id = update.effective_chat.id
+    
+    logger.info(f"Received message: {text} from {chat_id}")
+    
+    try:
+        domain_config, sys_config, kis = load_environment()
+        
+        # Security Check
+        if str(chat_id) != CHAT_ID:
+            await update.message.reply_text("Unauthorized access.")
+            return
+
+        if "1. 계좌 조회" in text:
+            await handle_account_info(update, kis, domain_config)
+        elif "2. 사이클 상황보고" in text:
+            await handle_cycle_report(update, kis, domain_config)
+        elif "3. 오늘의 주문예약" in text:
+            await handle_order_reservation(update, kis, domain_config)
+        elif "4. 오늘의 체결상황" in text:
+            await handle_execution_status(update, kis)
+        else:
+            # Re-send menu if text matches nothing
+            if text == "/start" or text.lower() == "hi":
+                await start(update, context)
+            else:
+                 await update.message.reply_text("올바른 메뉴를 선택해주세요.")
+            
+    except Exception as e:
+        logger.error(f"Error processing message: {e}", exc_info=True)
+        await update.message.reply_text(f"오류가 발생했습니다: {str(e)}")
+
+async def handle_account_info(update: Update, kis: KisApi, config):
+    symbol = config.symbol
+    position = kis.get_position(symbol)
+    
+    # Calculate total equity (simplified)
+    # Note: kis.get_position only returns one symbol logic.
+    # Ideally we want total balance. But for now, just show the symbol status.
+    
+    msg = (
+        f"📊 <b>계좌 조회 ({symbol})</b>\n\n"
+        f"보유수량: {position.quantity}\n"
+        f"평균단가: ${position.avg_price:,.2f}\n"
+        f"현재가격: ${position.current_price:,.2f}\n"
+        f"매입금액: ${position.total_cost:,.2f}\n"
+        f"평가금액: ${position.current_value:,.2f}\n"
+    )
+    
+    if position.total_cost > 0:
+        msg += f"수익률: {position.return_rate:.2f}%"
+    else:
+        msg += "수익률: 0.00%"
+        
+    await update.message.reply_html(msg)
+
+async def handle_cycle_report(update: Update, kis: KisApi, config):
+    symbol = config.symbol
+    position = kis.get_position(symbol)
+    
+    ref_price = position.current_price if position.current_price > 0 else position.avg_price
+    
+    # Needs ref_price > 0
+    if ref_price <= 0:
+         # Try to fetch current price if position is empty and no price
+         ref_price = kis.get_market_price(symbol)
+         if ref_price <= 0:
+             await update.message.reply_text("현재가 정보를 가져올 수 없어 계산할 수 없습니다.")
+             return
+
+    metrics = InfiniteBuyingLogic.calculate_metrics(config, position, float(ref_price))
+    
+    msg = (
+        f"🔄 <b>사이클 상황보고</b>\n\n"
+        f"현재회차: {metrics['current_t']}회 / {config.division_count}회\n"
+        f"진행률: {metrics['progress_rate']:.1f}%\n"
+        f"목표수익률: {metrics['target_profit_rate']:.1f}%\n"
+        f"목표매도가: ${metrics['sell_price']:.2f}\n"
+        f"Star가격: ${metrics['star_price']:.2f} ({metrics['star_ratio']:.1f}%)\n"
+        f"1회매수금: ${metrics['one_time_budget']:.2f}"
+    )
+    await update.message.reply_html(msg)
+
+async def handle_order_reservation(update: Update, kis: KisApi, config):
+    symbol = config.symbol
+    position = kis.get_position(symbol)
+    
+    orders = InfiniteBuyingLogic.generate_orders(config, position)
+    
+    if not orders:
+        await update.message.reply_text("📅 오늘 예정된 주문이 없습니다.")
+        return
+        
+    msg = "📅 <b>오늘의 주문예약</b>\n\n"
+    for order in orders:
+        side_kor = "매수" if order.side.name == "BUY" else "매도"
+        # order.order_type could be Enum, get .name or .value
+        type_name = order.order_type.name if hasattr(order.order_type, 'name') else str(order.order_type)
+        
+        msg += f"• [{side_kor}] {order.quantity}주 @ ${order.price:,.2f} ({type_name})\n"
+        msg += f"  - {order.description}\n\n"
+        
+    await update.message.reply_html(msg)
+
+async def handle_execution_status(update: Update, kis: KisApi):
+    today = date.today().strftime("%Y%m%d")
+    orders = kis.get_orders(today, today)
+    
+    if not orders:
+        await update.message.reply_text("📝 <b>오늘의 체결(주문) 현황</b>\n\n내역이 없습니다.")
+        return
+
+    msg = f"📝 <b>오늘의 체결(주문) 현황</b> ({today})\n\n"
+    
+    for o in orders:
+        # Fields based on KIS API inquire-ccnl
+        # OrdDate(ord_dt), OrderNo(odno), PrdtName(prdt_name), Side(sll_buy_dvsn_cd_name)
+        # Qty(ord_qty), Price(ord_unpr/ccld_avg_unpr), Status(ord_stat_name), Filled(ccld_qty)
+        
+        name = o.get("prdt_name") or o.get("pdno")
+        side = o.get("sll_buy_dvsn_cd_name", "주문")
+        qty = o.get("ord_qty", "0")
+        price = o.get("ord_unpr", "0")
+        status = o.get("ord_stat_name", "")
+        filled = o.get("ccld_qty", "0")
+        
+        msg += f"• {name} ({side})\n"
+        msg += f"  {qty}주 @ ${float(price):.2f} | {status} (체결: {filled})\n"
+        
+    await update.message.reply_html(msg)
+
+# --- Cloud Function Entry Point ---
+
+def telegram_webhook(request):
+    """
+    HTTP Cloud Function for generic webhook
+    """
+    # 1. Parse Request
+    if request.method != "POST":
+        return "Only POST supported", 405
+    
+    try:
+        request_json = request.get_json(silent=True)
+        if not request_json:
+            return "Invalid JSON", 400
+            
+        # Initialize Config to get Token
+        # (Slightly inefficient to load config every time, but ensures freshness and simplicity)
+        loader = ConfigLoader(CONFIG_PATH)
+        _, sys_config = loader.load()
+        token = sys_config.get("telegram", {}).get("bot_token")
+        
+        if not token:
+            logger.error("Bot token not found in config")
+            return "Bot token missing", 500
+
+    except Exception as e:
+        logger.error(f"Init error: {e}")
+        return f"Init Error: {e}", 500
+
+    # 2. Process Update with Asyncio
+    async def process_update_async():
+        # Build app
+        app = ApplicationBuilder().token(token).build()
+        
+        # Register Handlers
+        app.add_handler(CommandHandler("start", start))
+        app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+        
+        # Initialize
+        await app.initialize()
+        
+        # Process
+        update = Update.de_json(request_json, app.bot)
+        await app.process_update(update)
+        
+        # Shutdown
+        await app.shutdown()
+
+    try:
+        asyncio.run(process_update_async())
+    except Exception as e:
+        logger.error(f"Runtime error: {e}", exc_info=True)
+        return f"Runtime Error: {e}", 500
+        
+    return "OK", 200
