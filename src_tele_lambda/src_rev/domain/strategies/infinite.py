@@ -210,33 +210,60 @@ class InfiniteBuyingLogic:
         base_divisor_qty = star_qty + avg_buy_qty
         
         i = 1
-        stop_price = ref_price * 0.7 # 현재가 대비 -30%
+        stop_price = ref_price * 0.88 # 현재가 대비 -12%
+        
+        # Gap 계산 (평단 vs 현재가)
+        current_p = position.current_price
+        avg_p = position.avg_price
+        gap_ratio = 0.0
+        if current_p > 0 and avg_p > 0:
+            gap_ratio = (avg_p - current_p) / current_p
+            
+        boundary_price_2pct = current_p * 1.02
         
         while True:
-            # 추가 매수 가격 계산
-            divisor = base_divisor_qty + i
-            if divisor == 0: 
-                divisor = 1
-                
-            add_buy_price = one_time_budget / divisor
+            # 배치 크기 결정 (Step)
+            step = 1
             
-            # 종료 조건: 가격이 stop_price 미만이면 중단
+            # 가격 계산을 먼저 수행하여 step 결정에 활용
+            # (현재 i 기준 가격)
+            temp_divisor = base_divisor_qty + i
+            if temp_divisor == 0: temp_divisor = 1
+            temp_p = one_time_budget / temp_divisor
+            
+            if gap_ratio >= 0.02: # Gap 2% 이상
+                # Zone A: 평단 ~ 현재가+2% -> 4개씩
+                if temp_p > boundary_price_2pct:
+                    step = 4
+                # Zone B: 현재가+2% ~ -12% -> 2개씩
+                else:
+                    step = 2
+            else:
+                # Gap < 2% : 평범한 상황 -> 1개씩 (단, 원문에는 명시 없으나 문맥상 기본 1개 유지)
+                step = 1
+            
+            # 실제 주문 가격 계산 (배치의 시작점? 끝점? 여기서는 i 시점의 가격 사용)
+            # step만큼 건너뛸 것이므로, 현재 가격으로 step개를 주문하는 셈.
+            add_buy_price = temp_p
+            
+            # 종료 조건 확인
             if add_buy_price < stop_price:
                 break
-                
-            # 주문 생성 (수량 1개 고정)
+            
+            # 주문 생성
             orders.append(Order(
                 symbol=config.symbol,
                 side=OrderSide.BUY,
                 price=add_buy_price,
-                quantity= Quantity(1),
+                quantity= Quantity(step),
                 order_type=OrderType.LOC,
-                description=f"추가 매수 [{i}]"
+                description=f"추가 매수 [{i}~{i+step-1}]" if step > 1 else f"추가 매수 [{i}]"
             ))
             
-            i += 1
+            i += step
+            
             # 무한 루프 방지 안전장치
-            if i > 200:
+            if i > 300: # 배치가 커지므로 반복 횟수 제한은 넉넉하게
                 break
 
         return orders
