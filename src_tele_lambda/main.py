@@ -225,6 +225,9 @@ async def handle_execution_status(update: Update, kis: KisApi):
 
 # --- Cloud Function Entry Point ---
 
+import functions_framework
+
+@functions_framework.http
 def telegram_webhook(request):
     """
     HTTP Cloud Function for generic webhook
