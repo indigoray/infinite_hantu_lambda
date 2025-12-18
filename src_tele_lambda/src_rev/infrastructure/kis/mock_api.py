@@ -58,3 +58,26 @@ class MockKisApi:
         side_str = "매수" if order.side == OrderSide.BUY else "매도"
         logger.info(f"[MOCK] Order Placed: {order.symbol} {side_str} {order.quantity}ea @ ${order.price}")
         return True
+
+    def get_orders(self, start_date: str, end_date: str) -> list:
+        """
+        MOCK 주문 내역 반환
+        """
+        return [
+            {
+                "prdt_name": "SOXL",
+                "sll_buy_dvsn_cd_name": "매수",
+                "ord_qty": "1",
+                "ord_unpr": "36.01",
+                "ord_stat_name": "체결",
+                "ccld_qty": "1"
+            },
+            {
+                "prdt_name": "SOXL",
+                "sll_buy_dvsn_cd_name": "매수",
+                "ord_qty": "2",
+                "ord_unpr": "35.50",
+                "ord_stat_name": "접수",
+                "ccld_qty": "0"
+            }
+        ]
