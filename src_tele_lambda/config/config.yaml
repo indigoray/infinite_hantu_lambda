@@ -12,24 +12,19 @@ api: # 한국투자증권 API 설정
 
 trading: # 거래 설정
   infinite_buying_strategy: # 무한매수 전략 설정
-    [
-      {
-      symbol: "SOXL"  # 거래 종목 (SOXL, TQQQ 등)
+    - symbol: "SOXL"  # 거래 종목 (SOXL, TQQQ 등)
       total_investment: 1000000  # 전략 할당 총투자금 (달러)
       division_count: 40  # 분할수 (총 투자 건수)
       max_profit_rate: 12  # 목표수익률(최대익절비율) %
       min_profit_rate: 8  # 최소익절비율 %
-      star_adjustment_rate: 0  # Star 보정비율 % (default 0)      
-      },
-      {
-      symbol: "TQQQ"  # 거래 종목 (SOXL, TQQQ 등)
+      star_adjustment_rate: 0  # Star 보정비율 % (default 0)
+
+    - symbol: "TQQQ"  # 거래 종목 (SOXL, TQQQ 등)
       total_investment: 50000  # 전략 할당 총투자금 (달러)
       division_count: 40  # 분할수 (총 투자 건수)
       max_profit_rate: 10  # 목표수익률(최대익절비율) %
       min_profit_rate: 8  # 최소익절비율 %
-      star_adjustment_rate: 0  # Star 보정비율 % (default 0)      
-      },
-    ]
+      star_adjustment_rate: 0  # Star 보정비율 % (default 0)
 
 
 telegram:
