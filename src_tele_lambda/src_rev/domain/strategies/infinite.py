@@ -210,7 +210,7 @@ class InfiniteBuyingLogic:
         base_divisor_qty = star_qty + avg_buy_qty
         
         i = 1
-        stop_price = ref_price * 0.88 # 현재가 대비 -12%
+        stop_price = ref_price * 0.95 # 현재가 대비 -5% (텔레그램 메시지 길이 제한으로 축소)
         
         # Gap 계산 (평단 vs 현재가)
         current_p = position.current_price
