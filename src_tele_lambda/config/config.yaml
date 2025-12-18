@@ -29,5 +29,5 @@ trading: # 거래 설정
 
 telegram:
   enabled: true  # 텔레그램 알림 사용 여부
-  token: "5185620675:AAGZaumX9bv63g-h2C_dl3EPRXz733O81dU"  # 텔레그램 봇 토큰
+  bot_token: "5185620675:AAGZaumX9bv63g-h2C_dl3EPRXz733O81dU"  # 텔레그램 봇 토큰
   chat_id: "5200448036"  # 텔레그램 채팅 ID 
