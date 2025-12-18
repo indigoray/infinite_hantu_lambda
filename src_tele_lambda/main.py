@@ -41,7 +41,7 @@ TOKEN = None
 CHAT_ID = None
 
 # Deployment Version
-VERSION = "v1.2.0 (Virtual Mode)"
+VERSION = "v1.2.0 (Mock Mode)"
 
 def send_startup_notification():
     """컨테이너(인스턴스) 시작 시 알림"""
@@ -111,7 +111,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
     keyboard = [
         [KeyboardButton("1. 계좌 조회"), KeyboardButton("2. 사이클 상황보고")],
-        [KeyboardButton("3. 오늘의 주문예약"), KeyboardButton("4. 오늘의 체결상황")]
+        [KeyboardButton("3. 오늘의 주문예약"), KeyboardButton("4. 오늘의 체결상황")],
+        [KeyboardButton("5. Cycle History")]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text("무엇을 도와드릴까요?", reply_markup=reply_markup)
@@ -139,6 +140,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_order_reservation(update, kis, domain_configs)
         elif "4. 오늘의 체결상황" in text:
             await handle_execution_status(update, kis)
+        elif "5. Cycle History" in text:
+            await handle_cycle_history_menu(update)
         else:
             # Re-send menu if text matches nothing
             if text == "/start" or text.lower() == "hi":
@@ -266,6 +269,73 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             await query.edit_message_text(text=result_msg, parse_mode='HTML')
         else:
             await query.edit_message_text(text="실행할 주문이 없습니다.")
+
+    elif query.data == "history_summary":
+        # 요약 보기
+        msg = "📋 <b>Cycle Summary (2025.12.17)</b>\n\n"
+        msg += "<b>📅 진행 현황</b>\n"
+        msg += "• 시작일: 2025. 12. 03\n"
+        msg += "• 진행일: 12일차 (워킹데이)\n"
+        msg += "• 회차(T): 9.9회 / 40회\n\n"
+        
+        msg += "<b>💰 자산 현황</b>\n"
+        msg += "• 보유수량: 957 SOXL\n"
+        msg += "• 평단가: $43.71\n"
+        msg += "• 현재가: $36.01\n"
+        msg += "• 총매수액: $41,830.47\n"
+        msg += "• 평가손익: -$7,368.90 (-17.62%)\n\n"
+        
+        msg += "<b>🛒 금일 투자 설계</b>\n"
+        msg += "• 1회 매수금: $4,250\n"
+        msg += "• 평단매수: 51주\n"
+        msg += "• Star매수: 46주\n"
+        msg += "• 총 구매예정: 118주"
+        
+        await query.edit_message_text(text=msg, parse_mode='HTML')
+
+    elif query.data == "history_table":
+        # 표 보기
+        msg = "📊 <b>Cycle History (Table)</b>\n\n"
+        msg += "<pre>"
+        msg += "Date       | Close | Avg   | Qty\n"
+        msg += "-----------+-------+-------+-----\n"
+        msg += "2025.12.03 | $46.58| $45.61| 101\n"
+        msg += "2025.12.04 | $45.16| $45.38| 208\n"
+        msg += "2025.12.05 | $46.50| $45.61| 265\n"
+        msg += "2025.12.08 | $47.99| $45.93| 305\n"
+        msg += "2025.12.09 | $47.79| $46.27| 385\n"
+        msg += "2025.12.10 | $49.65| $46.62| 435\n"
+        msg += "2025.12.11 | $48.79| $46.85| 534\n"
+        msg += "2025.12.12 | $41.71| $46.03| 635\n"
+        msg += "2025.12.15 | $41.18| $45.36| 737\n"
+        msg += "2025.12.16 | $40.49| $44.76| 840\n"
+        msg += "2025.12.17 | $36.01| $43.71| 957\n"
+        msg += "</pre>\n"
+        msg += "※ 최근 3일간 큰 폭의 하락으로 수량이 급격히 증가했습니다."
+        await query.edit_message_text(text=msg, parse_mode='HTML')
+        
+    elif query.data == "history_graph":
+        # 그래프 보기 (이미지 전송)
+        try:
+            # 현재 디렉토리 기준 assets/cycle_graph.png
+            img_path = os.path.join(current_dir, "assets", "cycle_graph.png")
+            if os.path.exists(img_path):
+                await query.message.reply_photo(photo=open(img_path, 'rb'), caption="📉 <b>Cycle History (Graph)</b>", parse_mode='HTML')
+            else:
+                await query.edit_message_text(text="❌ 그래프 이미지를 찾을 수 없습니다.")
+        except Exception as e:
+            logger.error(f"Error sending photo: {e}")
+            await query.edit_message_text(text=f"오류 발생: {e}")
+
+async def handle_cycle_history_menu(update: Update):
+    """Cycle History 메뉴 선택 시"""
+    keyboard = [
+        [InlineKeyboardButton("📋 요약 보기", callback_data="history_summary")],
+        [InlineKeyboardButton("📊 표로 보기", callback_data="history_table"),
+         InlineKeyboardButton("📉 그래프 보기", callback_data="history_graph")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("원하시는 조회 방식을 선택해주세요:", reply_markup=reply_markup)
 
 async def handle_execution_status(update: Update, kis: KisApi):
     today = date.today().strftime("%Y%m%d")

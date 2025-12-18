@@ -22,11 +22,11 @@ class MockKisApi:
         고정된 잔고 데이터 반환 (엑셀 스크린샷 데이터 반영)
         """
         if symbol == "SOXL":
-            # 엑셀 데이터: 수량 840, 평단 44.76, 현재가 36.01
+            # 엑셀 데이터 (2025.12.17): 수량 957, 평단 43.71, 현재가 36.01
             return Position(
                 symbol=Symbol("SOXL"),
-                quantity=Quantity(840),
-                avg_price=Money(44.76),
+                quantity=Quantity(957),
+                avg_price=Money(43.71),
                 current_price=Money(36.01)
             )
         elif symbol == "TQQQ":
