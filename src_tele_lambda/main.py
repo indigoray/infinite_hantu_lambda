@@ -111,8 +111,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
     keyboard = [
         [KeyboardButton("1. 계좌 조회"), KeyboardButton("2. 사이클 상황보고")],
-        [KeyboardButton("3. 오늘의 주문예약"), KeyboardButton("4. 오늘의 체결상황")],
-        [KeyboardButton("5. Cycle History")]
+        [KeyboardButton("3. 오늘의 주문예약"), KeyboardButton("4. 오늘의 체결상황")]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text("무엇을 도와드릴까요?", reply_markup=reply_markup)
@@ -135,13 +134,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if "1. 계좌 조회" in text:
             await handle_account_info(update, kis, domain_configs)
         elif "2. 사이클 상황보고" in text:
-            await handle_cycle_report(update, kis, domain_configs)
+            await handle_cycle_menu(update)
         elif "3. 오늘의 주문예약" in text:
             await handle_order_reservation(update, kis, domain_configs)
         elif "4. 오늘의 체결상황" in text:
             await handle_execution_status(update, kis)
-        elif "5. Cycle History" in text:
-            await handle_cycle_history_menu(update)
         else:
             # Re-send menu if text matches nothing
             if text == "/start" or text.lower() == "hi":
@@ -173,33 +170,7 @@ async def handle_account_info(update: Update, kis: KisApi, configs):
         
     await update.message.reply_html(msg)
 
-async def handle_cycle_report(update: Update, kis: KisApi, configs):
-    msg = "🔄 <b>사이클 상황보고</b>\n\n"
-    
-    for config in configs:
-        symbol = config.symbol
-        position = kis.get_position(symbol)
-        
-        ref_price = position.current_price if position.current_price > 0 else position.avg_price
-        
-        # Needs ref_price > 0
-        if ref_price <= 0:
-             # Try to fetch current price if position is empty and no price
-             ref_price = kis.get_market_price(symbol)
-        
-        if ref_price <= 0:
-            msg += f"🔸 <b>{symbol}</b>: 가격 정보 없음\n\n"
-            continue
 
-        metrics = InfiniteBuyingLogic.calculate_metrics(config, position, float(ref_price))
-        
-        msg += f"🔸 <b>{symbol}</b>\n"
-        msg += f"  {metrics['current_t_float']:.1f}회차 ({metrics['current_t']}회) / {config.division_count}회\n"
-        msg += f"  진행률: {metrics['progress_rate']:.1f}% (목표: {metrics['target_profit_rate']:.1f}%)\n"
-        msg += f"  목표매도가: ${metrics['sell_price']:.2f}\n"
-        msg += f"  Star가격: ${metrics['star_price']:.2f}\n\n"
-
-    await update.message.reply_html(msg)
 
 async def handle_order_reservation(update: Update, kis, configs):
     msg = "📅 <b>오늘의 주문예약</b>\n\n"
@@ -327,15 +298,15 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             logger.error(f"Error sending photo: {e}")
             await query.edit_message_text(text=f"오류 발생: {e}")
 
-async def handle_cycle_history_menu(update: Update):
-    """Cycle History 메뉴 선택 시"""
+async def handle_cycle_menu(update: Update):
+    """사이클 상황보고 메뉴 (요약/표/그래프)"""
     keyboard = [
         [InlineKeyboardButton("📋 요약 보기", callback_data="history_summary")],
         [InlineKeyboardButton("📊 표로 보기", callback_data="history_table"),
          InlineKeyboardButton("📉 그래프 보기", callback_data="history_graph")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("원하시는 조회 방식을 선택해주세요:", reply_markup=reply_markup)
+    await update.message.reply_text("🔎 <b>사이클 상황보고</b>\n원하시는 조회 방식을 선택해주세요:", reply_markup=reply_markup, parse_mode='HTML')
 
 async def handle_execution_status(update: Update, kis: KisApi):
     today = date.today().strftime("%Y%m%d")
