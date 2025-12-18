@@ -241,72 +241,198 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         else:
             await query.edit_message_text(text="실행할 주문이 없습니다.")
 
-    elif query.data == "history_summary":
+    elif query.data.startswith("history_summary"):
         # 요약 보기
-        msg = "📋 <b>Cycle Summary (2025.12.17)</b>\n\n"
+        symbol = query.data.split("_")[-1]
+        await handle_summary(query, symbol)
+
+    elif query.data.startswith("history_table"):
+        # 표 보기
+        symbol = query.data.split("_")[-1]
+        await handle_table(query, symbol)
+        
+    elif query.data.startswith("history_graph"):
+        # 그래프 보기 (QuickChart)
+        symbol = query.data.split("_")[-1]
+        await handle_graph(query, symbol)
+
+async def handle_summary(query, symbol):
+    if symbol == "SOXL":
+        msg = "📋 <b>SOXL Cycle Summary (2025.12.17)</b>\n\n"
         msg += "<b>📅 진행 현황</b>\n"
         msg += "• 시작일: 2025. 12. 03\n"
         msg += "• 진행일: 12일차 (워킹데이)\n"
         msg += "• 회차(T): 9.9회 / 40회\n\n"
-        
         msg += "<b>💰 자산 현황</b>\n"
         msg += "• 보유수량: 957 SOXL\n"
         msg += "• 평단가: $43.71\n"
         msg += "• 현재가: $36.01\n"
         msg += "• 총매수액: $41,830.47\n"
         msg += "• 평가손익: -$7,368.90 (-17.62%)\n\n"
-        
         msg += "<b>🛒 금일 투자 설계</b>\n"
         msg += "• 1회 매수금: $4,250\n"
         msg += "• 평단매수: 51주\n"
         msg += "• Star매수: 46주\n"
         msg += "• 총 구매예정: 118주"
-        
-        await query.edit_message_text(text=msg, parse_mode='HTML')
+    else:
+        # TQQQ Dummy Data
+        msg = "📋 <b>TQQQ Cycle Summary (Mock)</b>\n\n"
+        msg += "<b>📅 진행 현황</b>\n"
+        msg += "• 시작일: 2025. 12. 10\n"
+        msg += "• 진행일: 5일차\n"
+        msg += "• 회차(T): 3.5회 / 40회\n\n"
+        msg += "<b>💰 자산 현황</b>\n"
+        msg += "• 보유수량: 100 TQQQ\n"
+        msg += "• 평단가: $50.00\n"
+        msg += "• 현재가: $55.00\n"
+        msg += "• 총매수액: $5,000.00\n"
+        msg += "• 평가손익: +$500.00 (+10.00%)\n"
+    
+    await query.edit_message_text(text=msg, parse_mode='HTML')
 
-    elif query.data == "history_table":
-        # 표 보기
-        msg = "📊 <b>Cycle History (Table)</b>\n\n"
+async def handle_table(query, symbol):
+    if symbol == "SOXL":
+        msg = "📊 <b>SOXL Cycle History</b>\n\n"
+        msg += "<pre>"
+        msg += "Date   | Close| Avg  | Star | Qty\n"
+        msg += "-------+------+------+------+-----\n"
+        msg += "12.03  | 46.58| 45.61| 49.90| 101\n"
+        msg += "12.04  | 45.16| 45.38| 49.37| 208\n"
+        msg += "12.05  | 46.50| 45.61| 49.46| 265\n"
+        msg += "12.08  | 47.99| 45.93| 49.70| 305\n"
+        msg += "12.09  | 47.79| 46.27| 49.86| 385\n"
+        msg += "12.10  | 49.65| 46.62| 50.09| 435\n"
+        msg += "12.11  | 48.79| 46.85| 50.06| 534\n"
+        msg += "12.12  | 41.71| 46.03| 48.93| 635\n"
+        msg += "12.15  | 41.18| 45.36| 48.10| 737\n"
+        msg += "12.16  | 40.49| 44.76| 47.24| 840\n"
+        msg += "12.17  | 36.01| 43.71| 45.94| 957\n"
+        msg += "</pre>\n"
+        msg += "※ Star 가격(목표매수가) 정보가 추가되었습니다."
+    else:
+        msg = "📊 <b>TQQQ Cycle History</b>\n\n"
         msg += "<pre>"
         msg += "Date       | Close | Avg   | Qty\n"
         msg += "-----------+-------+-------+-----\n"
-        msg += "2025.12.03 | $46.58| $45.61| 101\n"
-        msg += "2025.12.04 | $45.16| $45.38| 208\n"
-        msg += "2025.12.05 | $46.50| $45.61| 265\n"
-        msg += "2025.12.08 | $47.99| $45.93| 305\n"
-        msg += "2025.12.09 | $47.79| $46.27| 385\n"
-        msg += "2025.12.10 | $49.65| $46.62| 435\n"
-        msg += "2025.12.11 | $48.79| $46.85| 534\n"
-        msg += "2025.12.12 | $41.71| $46.03| 635\n"
-        msg += "2025.12.15 | $41.18| $45.36| 737\n"
-        msg += "2025.12.16 | $40.49| $44.76| 840\n"
-        msg += "2025.12.17 | $36.01| $43.71| 957\n"
+        msg += "2025.12.10 | $50.00| $50.00| 20\n"
+        msg += "2025.12.11 | $51.00| $50.50| 40\n"
+        msg += "2025.12.12 | $52.00| $51.00| 60\n"
+        msg += "2025.12.13 | $53.00| $51.50| 80\n"
+        msg += "2025.12.14 | $55.00| $52.20| 100\n"
         msg += "</pre>\n"
-        msg += "※ 최근 3일간 큰 폭의 하락으로 수량이 급격히 증가했습니다."
-        await query.edit_message_text(text=msg, parse_mode='HTML')
+        msg += "※ TQQQ는 순항 중입니다."
+    
+    await query.edit_message_text(text=msg, parse_mode='HTML')
+
+async def handle_graph(query, symbol):
+    try:
+        if symbol == "SOXL":
+             dates = ["12.3", "12.4", "12.5", "12.8", "12.9", "12.10", "12.11", "12.12", "12.15", "12.16", "12.17"]
+             qty = [101, 208, 265, 305, 385, 435, 534, 635, 737, 840, 957]
+             close = [46.58, 45.16, 46.50, 47.99, 47.79, 49.65, 48.79, 41.71, 41.18, 40.49, 36.01]
+             avg = [45.61, 45.38, 45.61, 45.93, 46.27, 46.62, 46.85, 46.03, 45.36, 44.76, 43.71]
+             star = [49.90, 49.37, 49.46, 49.70, 49.86, 50.09, 50.06, 48.93, 48.10, 47.24, 45.94]
+        else:
+             # TQQQ Dummy
+             dates = ["12.10", "12.11", "12.12", "12.13", "12.14"]
+             qty = [20, 40, 60, 80, 100]
+             close = [50, 51, 52, 53, 55]
+             avg = [50, 50.5, 51, 51.5, 52.2]
+             star = [55, 56, 57, 58, 60]
+
+        # QuickChart Configuration (Chart.js v2)
+        chart_config = {
+            "type": "bar",
+            "data": {
+                "labels": dates,
+                "datasets": [
+                    {
+                        "type": "line",
+                        "label": "Close",
+                        "borderColor": "rgb(54, 162, 235)",
+                        "borderWidth": 2,
+                        "fill": False,
+                        "data": close,
+                        "yAxisID": "y-axis-1"
+                    },
+                    {
+                        "type": "line",
+                        "label": "Avg Price",
+                        "borderColor": "rgb(255, 99, 132)",
+                        "borderWidth": 2,
+                        "fill": False,
+                        "data": avg,
+                        "yAxisID": "y-axis-1"
+                    },
+                        {
+                        "type": "line",
+                        "label": "Star Price",
+                        "borderColor": "rgb(255, 205, 86)",
+                        "borderWidth": 2,
+                        "borderDash": [5, 5],
+                        "fill": False,
+                        "data": star,
+                        "yAxisID": "y-axis-1"
+                    },
+                    {
+                        "type": "bar",
+                        "label": "Qty",
+                        "backgroundColor": "rgba(75, 192, 192, 0.5)",
+                        "data": qty,
+                        "yAxisID": "y-axis-2"
+                    }
+                ]
+            },
+            "options": {
+                "title": {
+                    "display": True,
+                    "text": f"Cycle History ({symbol})"
+                },
+                "scales": {
+                    "yAxes": [
+                        {
+                            "id": "y-axis-1",
+                            "type": "linear",
+                            "position": "left",
+                            "scaleLabel": {"display": True, "labelString": "Price ($)"}
+                        },
+                        {
+                            "id": "y-axis-2",
+                            "type": "linear",
+                            "position": "right",
+                            "scaleLabel": {"display": True, "labelString": "Quantity"}
+                        }
+                    ]
+                }
+            }
+        }
         
-    elif query.data == "history_graph":
-        # 그래프 보기 (이미지 전송)
-        try:
-            # 현재 디렉토리 기준 assets/cycle_graph.png
-            img_path = os.path.join(current_dir, "assets", "cycle_graph.png")
-            if os.path.exists(img_path):
-                await query.message.reply_photo(photo=open(img_path, 'rb'), caption="📉 <b>Cycle History (Graph)</b>", parse_mode='HTML')
-            else:
-                await query.edit_message_text(text="❌ 그래프 이미지를 찾을 수 없습니다.")
-        except Exception as e:
-            logger.error(f"Error sending photo: {e}")
-            await query.edit_message_text(text=f"오류 발생: {e}")
+        # Encode config to JSON string
+        import json
+        import urllib.parse
+        chart_json = json.dumps(chart_config)
+        encoded_config = urllib.parse.quote(chart_json)
+        quickchart_url = f"https://quickchart.io/chart?c={encoded_config}"
+        
+        # Send Photo URL directly (Telegram supports URL)
+        await query.message.reply_photo(photo=quickchart_url, caption=f"📉 <b>{symbol} Cycle Graph</b>", parse_mode='HTML')
+        
+    except Exception as e:
+        logger.error(f"Error generating graph: {e}")
+        await query.edit_message_text(text=f"그램프 생성 오류: {e}")
 
 async def handle_cycle_menu(update: Update):
-    """사이클 상황보고 메뉴 (요약/표/그래프)"""
+    """사이클 상황보고 메뉴 (요약/표/그래프) - 종목별 분리"""
     keyboard = [
-        [InlineKeyboardButton("📋 요약 보기", callback_data="history_summary")],
-        [InlineKeyboardButton("📊 표로 보기", callback_data="history_table"),
-         InlineKeyboardButton("📉 그래프 보기", callback_data="history_graph")]
+        [InlineKeyboardButton("📋 SOXL 요약", callback_data="history_summary_SOXL"),
+         InlineKeyboardButton("📋 TQQQ 요약", callback_data="history_summary_TQQQ")],
+        [InlineKeyboardButton("📊 SOXL 표", callback_data="history_table_SOXL"),
+         InlineKeyboardButton("📊 TQQQ 표", callback_data="history_table_TQQQ")],
+        [InlineKeyboardButton("📉 SOXL 그래프", callback_data="history_graph_SOXL"),
+         InlineKeyboardButton("📉 TQQQ 그래프", callback_data="history_graph_TQQQ")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("🔎 <b>사이클 상황보고</b>\n원하시는 조회 방식을 선택해주세요:", reply_markup=reply_markup, parse_mode='HTML')
+    await update.message.reply_text("🔎 <b>종목별 사이클 상황보고</b>\n원하시는 조회 방식을 선택해주세요:", reply_markup=reply_markup, parse_mode='HTML')
 
 async def handle_execution_status(update: Update, kis: KisApi):
     today = date.today().strftime("%Y%m%d")
