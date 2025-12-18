@@ -40,6 +40,30 @@ CONFIG_PATH = os.path.join(current_dir, "config", "config.yaml")
 TOKEN = None
 CHAT_ID = None
 
+# Deployment Version
+VERSION = "v1.1.0 (Mock Mode)"
+
+def send_startup_notification():
+    """컨테이너(인스턴스) 시작 시 알림"""
+    try:
+        if not os.path.exists(CONFIG_PATH):
+            return
+            
+        loader = ConfigLoader(CONFIG_PATH)
+        _, sys_config = loader.load()
+        token = sys_config.get("telegram", {}).get("bot_token")
+        chat_id = sys_config.get("telegram", {}).get("chat_id")
+        
+        if token and chat_id:
+            msg = f"🚀 <b>시스템 업데이트 완료</b>\n버전: {VERSION}\n새로운 코드가 서버에 반영되었습니다."
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            requests.post(url, json={"chat_id": chat_id, "text": msg, "parse_mode": "HTML"}, timeout=3)
+    except Exception as e:
+        logger.warning(f"Startup notification failed: {e}")
+
+# Call immediately on module load (Container Cold Start)
+send_startup_notification()
+
 def load_environment():
     """Load config and setup objects"""
     # Verify config exists
