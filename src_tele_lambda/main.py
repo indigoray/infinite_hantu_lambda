@@ -23,7 +23,9 @@ try:
     from src_rev.infrastructure.kis.auth import KisAuth
     from src_rev.infrastructure.kis.api import KisApi
     from src_rev.infrastructure.config_loader import ConfigLoader
+    from src_rev.infrastructure.config_loader import ConfigLoader
     from src_rev.domain.strategies.infinite import InfiniteBuyingLogic
+    import order  # Import the new order module
 except ImportError as e:
     logging.warning(f"Import failed: {e}. Ensure src_rev is in the same directory.")
     pass
@@ -173,33 +175,13 @@ async def handle_account_info(update: Update, kis: KisApi, configs):
 
 
 async def handle_order_reservation(update: Update, kis, configs):
-    msg = "📅 <b>오늘의 주문예약</b>\n\n"
-    has_orders = False
-    
-    for config in configs:
-        symbol = config.symbol
-        position = kis.get_position(symbol)
-        orders = InfiniteBuyingLogic.generate_orders(config, position)
-        
-        if not orders:
-            continue
-            
-        has_orders = True
-        msg += f"🔸 <b>{symbol}</b>\n"
-        for order in orders:
-            side_kor = "매수" if order.side.name == "BUY" else "매도"
-            # order_type.name 접근 시 Enum인지 문자열인지 확인 필요
-            type_name = order.order_type.name if hasattr(order.order_type, 'name') else str(order.order_type)
-            
-            msg += f"  • [{side_kor}] {order.quantity}주 @ ${order.price:,.2f}\n"
-            msg += f"    ({type_name}) - {order.description}\n"
-        msg += "\n"
+    # Use order.py for logic
+    msg, has_orders = order.generate_reservation_message(configs, kis)
     
     if not has_orders:
-        msg = "📅 <b>오늘 예정된 주문이 없습니다.</b>"
         await update.message.reply_html(msg)
     else:
-        # 주문 실행 버튼 추가
+        # 주문 실행 버튼 - 여기서는 버튼을 붙여서 보냄
         keyboard = [
             [InlineKeyboardButton("✅ 주문 실행하기", callback_data="execute_orders")]
         ]
@@ -224,22 +206,9 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         # 여기서는 간단히 update.effective_chat.id로 확인
         
         # 주문 실행 로직
-        results = []
-        for config in domain_configs:
-            symbol = config.symbol
-            position = kis.get_position(symbol)
-            orders = InfiniteBuyingLogic.generate_orders(config, position)
-            
-            for order in orders:
-                success = kis.place_order(order)
-                status = "성공" if success else "실패"
-                results.append(f"{symbol} {order.side.name} {order.quantity}주: {status}")
-
-        if results:
-            result_msg = "🚀 <b>주문 실행 결과</b>\n\n" + "\n".join(results)
-            await query.edit_message_text(text=result_msg, parse_mode='HTML')
-        else:
-            await query.edit_message_text(text="실행할 주문이 없습니다.")
+        # 주문 실행 로직 위임
+        result_msg = order.execute_daily_orders(domain_configs, kis)
+        await query.edit_message_text(text=result_msg, parse_mode='HTML')
 
     elif query.data.startswith("history_summary"):
         # 요약 보기
