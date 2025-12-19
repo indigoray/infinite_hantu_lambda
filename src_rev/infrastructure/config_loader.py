@@ -31,8 +31,8 @@ class ConfigLoader:
                 symbol=Symbol(trading_conf.get("symbol", "SOXL")),
                 total_investment=Money(float(trading_conf.get("total_investment", 10000))),
                 division_count=int(trading_conf.get("division_count", 40)),
-                max_profit_rate=Percentage(float(trading_conf.get("max_profit_rate", 10.0))),
-                min_profit_rate=Percentage(float(trading_conf.get("min_profit_rate", 5.0))),
+                max_profit_rate=Percentage(float(trading_conf.get("max_profit_rate", 12.0))),
+                min_profit_rate=Percentage(float(trading_conf.get("min_profit_rate", 8.0))),
                 star_adjustment_rate=Percentage(float(trading_conf.get("star_adjustment_rate", 0.0)))
             )
             

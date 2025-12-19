@@ -64,6 +64,6 @@ class InfiniteConfig:
     symbol: Symbol
     total_investment: Money        # 총 투자금
     division_count: int = 40       # 분할 수 (기본 40)
-    max_profit_rate: Percentage = Percentage(10.0) # 목표 수익률 (10%)
-    min_profit_rate: Percentage = Percentage(5.0)  # 최소 수익률 (5%) - 후반전
+    max_profit_rate: Percentage = Percentage(12.0) # 목표 수익률 (12%)
+    min_profit_rate: Percentage = Percentage(8.0)  # 최소 수익률 (8%) - 후반전
     star_adjustment_rate: Percentage = Percentage(0.0) # Star 비율 보정

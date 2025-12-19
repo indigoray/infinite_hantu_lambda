@@ -105,7 +105,7 @@ def load_environment():
                 
         kis = KisApi(auth, account_num)
     
-    return domain_config, system_config, kis
+    return [domain_config], system_config, kis
 
 # --- Command Handlers ---
 

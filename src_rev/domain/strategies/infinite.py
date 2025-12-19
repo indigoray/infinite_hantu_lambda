@@ -31,10 +31,10 @@ class InfiniteBuyingLogic:
         one_time_budget = config.total_investment / config.division_count
         
         # 2. 현재 회차 (T) 계산 = 총 매입금 / 1회 매수 금액
-        #    소수점은 내림 처리하여 보수적으로 계산
-        current_t = 0
+        #    정밀한 T값 (소수점 포함) 지원 (v1.2.0 변경사항)
+        current_t = 0.0
         if position.total_cost > 0 and one_time_budget > 0:
-            current_t = math.floor(position.total_cost / one_time_budget)
+            current_t = position.total_cost / one_time_budget
             
         # 3. 진행률 (%)
         progress_rate = (current_t / config.division_count) * 100
@@ -50,9 +50,9 @@ class InfiniteBuyingLogic:
         sell_price = position.avg_price * (1 + target_profit_rate / 100.0)
         
         # 6. Star 비율 및 가격 계산 (매수 기준가)
-        #    공식: (Max - 2.5) - (진행률/100 * (Max-2.5)*2) + 보정
-        #    이는 진행률이 높을수록(후반전) 더 낮은 가격에 매수하도록 유도함
-        base_star_ratio = config.max_profit_rate - 2.5
+        #    공식: (Max - 2.0) - (진행률/100 * (Max-2.0)*2) + 보정
+        #    (User Feedback: 2.5가 아닌 2.0을 사용해야 데이터와 일치)
+        base_star_ratio = config.max_profit_rate - 2.0
         star_ratio = base_star_ratio - (progress_rate / 100.0 * base_star_ratio * 2) + config.star_adjustment_rate
         
         # If avg_price is 0 (initial entry), use ref_price (current_price)
@@ -103,12 +103,12 @@ class InfiniteBuyingLogic:
             
             # 가격 단위(Tick) 처리는 여기서는 생략하고 float 그대로 둠 (Infrastructure 레벨에서 처리)
             
-            # Star 매도 주문 (LOC) - Star가격보다 조금 높게 (예: +0.1%)
+            # Star 매도 주문 (LOC) - Star가격보다 0.01달러 높게 (MDC 기준)
             if star_sell_qty > 0:
                 orders.append(Order(
                     symbol=config.symbol,
                     side=OrderSide.SELL,
-                    price=metrics["star_price"] * 1.001, # 약 0.1% 위
+                    price=metrics["star_price"] + 0.01, # Star가격 + 0.01
                     quantity=star_sell_qty,
                     order_type=OrderType.LOC,
                     description="Star 리밸런싱 매도"

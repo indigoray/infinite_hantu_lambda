@@ -43,8 +43,50 @@ def verify_user_scenario():
     
     print(f"\n[Generated Orders]")
     
-    # Filter Buy Orders for Comparison
+    # Filter Orders
     buy_orders = [o for o in orders if o.side == OrderSide.BUY]
+    sell_orders = [o for o in orders if o.side == OrderSide.SELL]
+    
+    # Calculate Profit Rate
+    metrics = InfiniteBuyingLogic.calculate_metrics(config, position, ref_price=current_price)
+    profit_rate = metrics["target_profit_rate"]
+    print(f"\n[Metrics Verification]")
+    print(f"Calculated Profit Rate: {profit_rate:.2f}% (Expected: 10.91%) -> {'MATCH' if abs(profit_rate - 10.91) < 0.05 else 'DIFF'}")
+
+    print(f"\n[Sell Orders Verification]")
+    print(f"{'Type':<12} | {'Price':<10} | {'Qty':<5} | {'Desc'}")
+    print("-" * 50)
+    
+    for order in sell_orders:
+        print(f"{order.order_type.name:<12} | ${order.price:<9.2f} | {order.quantity:<5} | {order.description}")
+
+    # Verify Sell Quantities
+    # Star Sell: 1066 / 4 = 266
+    # Profit Sell: 1066 - 266 = 800
+    
+    star_sell = next((o for o in sell_orders if "Star" in o.description), None)
+    profit_sell = next((o for o in sell_orders if "목표" in o.description), None)
+    
+    if star_sell:
+        print(f"Star Sell Qty: {star_sell.quantity} (Expected 266) -> {'MATCH' if star_sell.quantity == 266 else 'DIFF'}")
+        # Base Star Price Check: 45.16 (User) vs Calc
+        # Sell Price should be Base + 0.01 (45.16 + 0.01 = 45.17)
+        # Note: Code calculates StarPrice around 45.15-45.16 now with -2.0 param.
+        # User Table: 45.16
+        print(f"Star Sell Price: ${star_sell.price:.2f} (Expected ~$45.17)")
+    else:
+        print("Star Sell: Not Generated!")
+        
+    if profit_sell:
+        print(f"Profit Sell Qty: {profit_sell.quantity} (Expected 800) -> {'MATCH' if profit_sell.quantity == 800 else 'DIFF'}")
+        # Profit Price: 43.19 * (1 + 10.91%) = 47.90
+        expected_profit_price = 43.19 * (1 + profit_rate/100)
+        print(f"Profit Sell Price: ${profit_sell.price:.2f} (Expected ~${expected_profit_price:.2f})")
+    else:
+        print("Profit Sell: Not Generated!")
+
+    # Filter Buy Orders for Comparison
+
     
     # Expected Data (Partial from user input)
     # Price, Qty
