@@ -31,10 +31,10 @@ class InfiniteBuyingLogic:
         one_time_budget = config.total_investment / config.division_count
         
         # 2. 현재 회차 (T) 계산 = 총 매입금 / 1회 매수 금액
-        #    정밀한 T값 (소수점 포함) 지원 (v1.2.0 변경사항)
+        #    정밀한 T값 (소수점 1째 자리 반올림) 지원
         current_t = 0.0
         if position.total_cost > 0 and one_time_budget > 0:
-            current_t = position.total_cost / one_time_budget
+            current_t = round(position.total_cost / one_time_budget, 1)
             
         # 3. 진행률 (%)
         progress_rate = (current_t / config.division_count) * 100
@@ -103,12 +103,13 @@ class InfiniteBuyingLogic:
             
             # 가격 단위(Tick) 처리는 여기서는 생략하고 float 그대로 둠 (Infrastructure 레벨에서 처리)
             
-            # Star 매도 주문 (LOC) - Star가격보다 0.01달러 높게 (MDC 기준)
+            # Star 매도 주문 (LOC) - Star가격 그대로 (User Request)
+            # 매수가는 Star-0.01, 매도는 Star -> 0.01 차이 발생
             if star_sell_qty > 0:
                 orders.append(Order(
                     symbol=config.symbol,
                     side=OrderSide.SELL,
-                    price=metrics["star_price"] + 0.01, # Star가격 + 0.01
+                    price=metrics["star_price"], # Star가격
                     quantity=star_sell_qty,
                     order_type=OrderType.LOC,
                     description="Star 리밸런싱 매도"
@@ -155,7 +156,7 @@ class InfiniteBuyingLogic:
                 orders.append(Order(
                     symbol=config.symbol,
                     side=OrderSide.BUY,
-                    price=metrics["star_price"],
+                    price=metrics["star_price"] - 0.01, # Star가격 - 0.01
                     quantity=star_buy_qty,
                     order_type=OrderType.LOC,
                     description="Star 가격 매수"
