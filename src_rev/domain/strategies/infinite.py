@@ -89,12 +89,26 @@ class InfiniteBuyingLogic:
         metrics = cls.calculate_metrics(config, position, ref_price=float(ref_price))
         orders: List[Order] = []
         
-        # A. 매도 주문 생성 (보유 수량이 있을 때만)
+        # A. T > 40: 강제 청산 (MOC 매도)
+        # T=40까지는 매수 진행, T=40.1 이상부터는 매입금 소진 상태로 보고 강제 청산 모드 돌입
+        if metrics["current_t"] > 40.0:
+            moc_qty = math.floor(position.quantity * 0.25)
+            if moc_qty > 0:
+                return [Order(
+                    symbol=config.symbol,
+                    side=OrderSide.SELL,
+                    price=Money(0.0), # MOC는 가격 지정 불필요 (시장가)
+                    quantity=Quantity(moc_qty),
+                    order_type=OrderType.MOC,
+                    description="강제 청산 (T>40, 25% MOC)"
+                )]
+            else:
+                return []
+
+        # B. 매도 주문 생성 (보유 수량이 있을 때만) (T <= 40)
         if position.quantity > 0:
             # 1. 익절 매도 (After Market, 전량에서 Star매도분 제외)
             # 2. Star 매도 (LOC, 보유량의 1/4)
-            #    단, 원칙적으로는 LOC 매수가 체결될 수 있으므로, 매도는 보수적으로 접근 
-            #    (여기서는 표준 전략인 '익절 매도'와 'Star 매도'를 동시에 냄)
             
             # Star 매도: 평단보다 높게 설정해야 손해가 없음. 
             # 하지만 무한매수법에서는 '현금 확보'가 목적이므로 Star가격+알파에 일부 매도.

@@ -8,6 +8,7 @@ class OrderType(str, Enum):
     LIMIT = "LIMIT"                 # 지정가
     MARKET = "MARKET"               # 시장가
     LOC = "LOC"                     # Limit On Close (종가 지정가)
+    MOC = "MOC"                     # Market On Close (종가 시장가)
     AFTER_MARKET = "AFTER_MARKET"   # 애프터마켓 지정가
 
 class OrderSide(str, Enum):
