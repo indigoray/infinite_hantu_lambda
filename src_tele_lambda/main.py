@@ -74,7 +74,7 @@ def load_environment():
         raise FileNotFoundError(f"Config file not found at {CONFIG_PATH}")
 
     loader = ConfigLoader(CONFIG_PATH)
-    domain_config, system_config = loader.load()
+    domain_configs, system_config = loader.load()
     
     # Global setup
     global TOKEN, CHAT_ID
@@ -105,7 +105,7 @@ def load_environment():
                 
         kis = KisApi(auth, account_num)
     
-    return [domain_config], system_config, kis
+    return domain_configs, system_config, kis
 
 # --- Command Handlers ---
 
