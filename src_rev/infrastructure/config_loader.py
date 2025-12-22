@@ -29,7 +29,7 @@ class ConfigLoader:
             
             domain_config = InfiniteConfig(
                 symbol=Symbol(trading_conf.get("symbol", "SOXL")),
-                total_investment=Money(float(trading_conf.get("total_investment", 10000))),
+                total_investment=Money(float(trading_conf.get("initial_investment", trading_conf.get("total_investment", 10000)))),
                 division_count=int(trading_conf.get("division_count", 40)),
                 max_profit_rate=Percentage(float(trading_conf.get("max_profit_rate", 12.0))),
                 min_profit_rate=Percentage(float(trading_conf.get("min_profit_rate", 8.0))),
@@ -39,7 +39,8 @@ class ConfigLoader:
             # 2. System Settings 추출
             system_config = {
                 "telegram": self._raw_config.get("telegram", {}),
-                "api": self._raw_config.get("api", {})
+                "api": self._raw_config.get("api", {}),
+                "backtest": self._raw_config.get("backtest", {})
             }
             
             logger.info(f"Config loaded successfully from {self.config_path}")

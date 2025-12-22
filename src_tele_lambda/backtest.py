@@ -4,6 +4,7 @@ import sys
 import logging
 import argparse
 from datetime import datetime, timedelta
+from typing import Dict
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -97,8 +98,17 @@ class MockKisApi:
         return profit
 
 class BacktestEngine:
-    def __init__(self, config: InfiniteConfig, start_date, end_date):
+    def __init__(self, config: InfiniteConfig, system_config: Dict, start_date, end_date):
         self.config = config
+        # 초기 전략 할당금 (예: 150,000)
+        self.initial_strategy_investment = float(config.total_investment)
+        
+        # 시스템 설정에서 전체 계좌 자산 로드 (예: 210,000)
+        # 없으면 전략 할당금과 동일하게 설정
+        backtest_conf = system_config.get("backtest", {})
+        self.initial_account_balance = float(backtest_conf.get("total_balance", self.initial_strategy_investment))
+        
+        self.system_config = system_config
         self.start_date = start_date
         self.end_date = end_date
         self.exchange = MockKisApi()
@@ -120,6 +130,17 @@ class BacktestEngine:
 
         logger.info("============== 백테스트 시작 ==============")
         
+        # 복리 모드 확인
+        use_compound = self.system_config.get("backtest", {}).get("use_compound_interest", False)
+        mode_str = "복리(Compound)" if use_compound else "단리(Fixed)"
+        
+        logger.info(f"모드: {mode_str}")
+        logger.info(f"초기 계좌 자본: ${self.initial_account_balance:,.2f}")
+        logger.info(f"초기 전략 할당: ${self.initial_strategy_investment:,.2f}")
+
+        # 첫 사이클 예산 설정
+        self.current_budget = self.initial_strategy_investment
+        
         # 날짜별 루프
         cycle_count = 1
         self.cycle_results = []
@@ -128,9 +149,6 @@ class BacktestEngine:
 
         for date_idx, row in df.iterrows():
             date_str = date_idx.strftime("%Y-%m-%d")
-            
-            if current_cycle_start is None:
-                current_cycle_start = date_str
             
             # 1. 시세 업데이트 (High/Low/Close)
             # yfinance 최신 버전에서는 row['Close']가 스칼라가 아닐 수 있음 (MultiIndex)
@@ -143,6 +161,22 @@ class BacktestEngine:
             self.exchange.update_current_price(self.config.symbol, close_price)
             position = self.exchange.get_position(self.config.symbol)
             
+            # --- [Compounding Logic] ---
+            # 보유량이 0이면(사이클 시작 전), 투자금 설정 업데이트
+            if position.quantity == 0:
+                if current_cycle_start is None:
+                    current_cycle_start = date_str
+                
+                # [수정된 복리 로직]
+                # Strategy Budget은 Profit에 따라 증액됨.
+                # 단, 여기서는 일별로 계속 바꾸는게 아니라 '사이클 시작 시점'에 확정된 예산으로 플레이.
+                # 현재 코드 위치는 매일 장 시작 전 체크이므로, 사이클 내내 동일 예산 유지.
+                # 사이클 종료 후(매도 후) 예산 업데이트가 필요함.
+                # 따라서 여기서는 self.current_budget 값을 config에 적용하기만 하면 됨.
+                
+                self.config.total_investment = Money(self.current_budget)
+            # ---------------------------
+
             # 2. 주문 생성 (장중 예약 -> 장마감 동시호가 체결 가정)
             # 실제로는 '내일' 주문을 오늘 밤에 내는 것이지만, 
             # 백테스트에서는 '오늘' 데이터 보고 '오늘 종가'에 샀다고 가정하는 것이 간편 (LOC)
@@ -198,15 +232,16 @@ class BacktestEngine:
 
             # 4. 자산 기록
             pos = self.exchange.get_position(self.config.symbol)
-            total_val = pos.market_value + self.exchange.realized_profit # 실현손익 누적 개념(재투자 가정시 로직 복잡, 여기선 단순 합)
-            # 정확히는: 총 평가 자산 = (보유주식 평가액) + (현금 잔고?)
-            # 현금 잔고: 초기 0 - 매수금 + 매도금
-            # Profit Based Tracking:
-            # Net Value = Realized Profit + Unrealized Profit - Fees
-            # Unrealized Profit = Market Value - Total Cost (of held shares)
             
+            # 자산 가치 계산
             unrealized = pos.market_value - pos.total_cost
             net_value = self.exchange.realized_profit + unrealized
+            
+            # 현재 총 자산 (Equity) = 초기 계좌 자본 + 누적 실현 손익
+            total_equity = self.initial_account_balance + net_value
+            
+            # 현 사이클에 할당된 예산 (Total Investment setting)
+            cycle_budget = float(self.config.total_investment)
             
             self.history.append({
                 "date": date_idx,
@@ -215,7 +250,10 @@ class BacktestEngine:
                 "holdings_qty": int(pos.quantity),
                 "avg_price": float(pos.avg_price),
                 "realized_profit": self.exchange.realized_profit,
-                "net_value": net_value
+                "net_value": net_value,
+                "invested_principal": float(pos.total_cost),
+                "total_equity": total_equity,
+                "cycle_budget": cycle_budget
             })
             
             # 사이클 종료 체크 (보유량 0이고, 과거에 매수한 적이 있을 때)
@@ -223,16 +261,25 @@ class BacktestEngine:
             if pos.quantity == 0 and daily_sell_amt > 0:
                 cycle_profit = self.exchange.realized_profit - prev_profit
                 
+                # [예산 업데이트]
+                if use_compound:
+                    self.current_budget += cycle_profit
+                    # 예산이 0 이하로 떨어지지 않게 방어
+                    if self.current_budget < 0: self.current_budget = 0
+                else:
+                    self.current_budget = self.initial_strategy_investment
+
                 # 사이클 정보 저장
                 self.cycle_results.append({
                     "cycle": cycle_count,
                     "start": current_cycle_start,
                     "end": date_str,
                     "profit": cycle_profit,
-                    "return": (cycle_profit / float(self.config.total_investment)) * 100
+                    "return": (cycle_profit / float(self.config.total_investment)) * 100, # 현재 사이클 예산 대비 수익률
+                    "budget": float(self.config.total_investment)
                 })
 
-                logger.info(f"✨ 사이클 {cycle_count} 종료! 실현 손익: ${cycle_profit:.2f} ({date_str})")
+                logger.info(f"✨ 사이클 {cycle_count} 종료! 손익: ${cycle_profit:.2f} | 다음 예산: ${self.current_budget:,.0f} ({date_str})")
                 
                 cycle_count += 1
                 prev_profit = self.exchange.realized_profit
@@ -247,6 +294,8 @@ class BacktestEngine:
         
         # 그래프에서 0원(미보유) 구간이 바닥을 치지 않도록 NaN 처리
         df_hist['avg_price'] = df_hist['avg_price'].replace(0.0, float('nan'))
+        df_hist['invested_principal'] = df_hist['invested_principal'].replace(0.0, float('nan'))
+        df_hist['holdings_qty'] = df_hist['holdings_qty'].replace(0, float('nan'))
         
         final_profit = self.exchange.realized_profit
         logger.info(f"최종 실현 수익: ${final_profit:,.2f}")
@@ -264,8 +313,8 @@ class BacktestEngine:
         # ---------------------------------------------------------
         # 성과 지표 계산 (Performance Metrics)
         # ---------------------------------------------------------
-        # 초기 자본: config.total_investment (float)
-        initial_capital = float(self.config.total_investment)
+        # 초기 자본: 시스템 설정의 Total Balance 사용
+        initial_capital = self.initial_account_balance
         
         # 일별 수익률 계산 (Net Value 기준)
         # 평가는 0에서 시작하는 realized_profit + unrealized 이므로,
@@ -298,6 +347,24 @@ class BacktestEngine:
         # ---------------------------------------------------------
         # 리포트 작성
         # ---------------------------------------------------------
+        
+        # 0. 설정 요약 (Configuration Summary)
+        # ---------------------------------------------------------
+        use_compound = self.system_config.get("backtest", {}).get("use_compound_interest", False)
+        compound_str = "적용 (Compound)" if use_compound else "미적용 (Fixed)"
+        
+        config_summary = [
+            "\n",
+            "=== 백테스트 설정 (Configuration) ===",
+            f"종목 코드      : {self.config.symbol}",
+            f"초기 계좌자본  : ${self.initial_account_balance:,.2f}",
+            f"초기 전략할당  : ${self.initial_strategy_investment:,.2f}",
+            f"분할 수        : {self.config.division_count}회",
+            f"목표 수익률    : {float(self.config.max_profit_rate)}%",
+            f"수익 재투자    : {compound_str}",
+            "====================================="
+        ]
+
         summary_text = [
             "\n",
             "=== 전략 성과 요약 (Performance Summary) ===",
@@ -312,17 +379,17 @@ class BacktestEngine:
         
         cycle_summary = [
             "\n=== 사이클별 성과 (Cycle Summary) ===",
-            f"{'Cycle':<6} | {'Start Date':<12} | {'End Date':<12} | {'Profit':<12} | {'Return':<8}",
-            "-" * 60
+            f"{'Cycle':<6} | {'Start Date':<12} | {'End Date':<12} | {'Budget':<12} | {'Profit':<12} | {'Return':<8}",
+            "-" * 75
         ]
         
         for res in self.cycle_results:
-            line = f"{res['cycle']:<6} | {res['start']:<12} | {res['end']:<12} | ${res['profit']:<11,.2f} | {res['return']:<6.2f}%"
+            line = f"{res['cycle']:<6} | {res['start']:<12} | {res['end']:<12} | ${res['budget']:<11,.0f} | ${res['profit']:<11,.2f} | {res['return']:<6.2f}%"
             cycle_summary.append(line)
-        cycle_summary.append("=========================================\n")
+        cycle_summary.append("===========================================================================\n")
         
         # 전체 텍스트 합치기
-        full_summary = cycle_summary + summary_text
+        full_summary = config_summary + cycle_summary + summary_text
         
         for line in full_summary:
             print(line.strip())
@@ -335,26 +402,43 @@ class BacktestEngine:
         logger.info("성과 요약 리포트 작성 완료")
         
         # 2. 그래프 생성
-        plt.figure(figsize=(12, 8))
+        plt.figure(figsize=(12, 12)) # 그래프 크기 확대 (3단)
         
         # 상단: 주가 및 평단가
-        plt.subplot(2, 1, 1)
+        plt.subplot(3, 1, 1)
         plt.plot(df_hist.index, df_hist['close'], label='Close Price', color='gray', alpha=0.5)
         plt.plot(df_hist.index, df_hist['avg_price'], label='Avg Price', color='orange', linestyle='--')
         plt.title(f"Price History ({self.config.symbol})")
         plt.legend()
         plt.grid(True)
         
-        # 하단: 평가 손익 (Net Value)
-        plt.subplot(2, 1, 2)
-        plt.plot(df_hist.index, df_hist['net_value'], label='Net Profit/Loss ($)', color='blue')
+        # 중단: 평가 손익 (Net Value) -> 총 자산(Total Equity) 그래프로 변경하는 것이 더 직관적일 수 있음
+        # 사용자가 "계좌 잔고와 Cycle당 투자액 구분"을 요청했으므로,
+        # 중단을 "Total Account Balance" (Equity)로 표시하고, Cycle Budget도 같이 표시?
         
-        # 실현 손익 영역 표시
-        plt.fill_between(df_hist.index, df_hist['net_value'], 0, alpha=0.1)
-        
-        plt.title(f"Net Profit/Loss Trend (MDD: {mdd:.2f}%)")
+        plt.subplot(3, 1, 2)
+        plt.plot(df_hist.index, df_hist['total_equity'], label='Total Account Balance', color='blue')
+        plt.plot(df_hist.index, df_hist['cycle_budget'], label='Cycle Budget Limit', color='green', linestyle=':', alpha=0.7)
+        plt.title(f"Account Balance & Budget (MDD: {mdd:.2f}%)")
         plt.legend()
         plt.grid(True)
+        
+        # 하단: 매수 원금 & 보유 수량 (Dual Y-Axis)
+        ax1 = plt.subplot(3, 1, 3)
+        ax1.set_xlabel('Date')
+        ax1.set_ylabel('Invested Principal ($)', color='green')
+        # fill_between uses 0 as baseline, so nan needs handling or simple plot
+        # Using plot with area fill
+        ax1.fill_between(df_hist.index, df_hist['invested_principal'], 0, color='green', alpha=0.3, label='Invested Principal')
+        ax1.tick_params(axis='y', labelcolor='green')
+        ax1.grid(True)
+        
+        ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+        ax2.set_ylabel('Quantity', color='purple')  # we already handled the x-label with ax1
+        ax2.plot(df_hist.index, df_hist['holdings_qty'], color='purple', linestyle='-', linewidth=1.5, label='Holdings Qty')
+        ax2.tick_params(axis='y', labelcolor='purple')
+        
+        plt.title("Invested Capital & Quantity")
         
         plt.tight_layout()
         plt.savefig("backtest_result.png")
@@ -386,7 +470,7 @@ def main():
     loader = ConfigLoader(real_config_path)
     # config_loader returns list or single obj depending on version. 
     # Current main.py logic suggests it returns list.
-    domain_configs, _ = loader.load()
+    domain_configs, system_config = loader.load()
     
     # Select config for the requested symbol
     target_config = None
@@ -410,7 +494,7 @@ def main():
         )
 
     print(f"Running Backtest for {args.symbol} from {args.start} to {args.end}")
-    engine = BacktestEngine(target_config, args.start, args.end)
+    engine = BacktestEngine(target_config, system_config, args.start, args.end)
     engine.run()
 
 if __name__ == "__main__":
