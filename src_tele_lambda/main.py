@@ -57,7 +57,7 @@ def send_startup_notification():
         chat_id = sys_config.get("telegram", {}).get("chat_id")
         
         if token and chat_id:
-            msg = f"🚀 <b>시스템 업데이트 완료</b>\n버전: {VERSION}\n새로운 코드가 서버에 반영되었습니다."
+            msg = f"🚀 <b>시스템이 준비되었습니다.</b>\n버전: {VERSION}"
             url = f"https://api.telegram.org/bot{token}/sendMessage"
             requests.post(url, json={"chat_id": chat_id, "text": msg, "parse_mode": "HTML"}, timeout=3)
     except Exception as e:
